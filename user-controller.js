@@ -4,6 +4,7 @@ const config = require('./config.json');
 const jwt = require('jsonwebtoken');
 const Sequelize = require('sequelize');
 
+// const sequelize = new Sequelize('kUmw0n1Ziw', 'kUmw0n1Ziw', 'Y2XIb0BSp3', {
 const sequelize = new Sequelize('mydb', 'root', '', {
   host: 'localhost',
   dialect: 'mysql'
@@ -74,24 +75,26 @@ const login = (req, res, next) => {
 const signup = (req, res, next) => {
   const { username, email, password } = req.body;
   console.log(`username->'${username}', email->'${email}', password->'${password}'`);
-  User.create({
-    username, email, password
-  }).then(user => {
-    curUser = Object.assign({}, user);
-    const token = jwt.sign({ sub: user.username }, config.secret);
+  User.sync({ force: false }).then(() => {
+    User.create({
+      username, email, password
+    }).then(user => {
+      curUser = Object.assign({}, user);
+      const token = jwt.sign({ sub: user.username }, config.secret);
 
-    User.findAll().then((resolve) => {
-      const users = JSON.parse(JSON.stringify(resolve, null, 4));
-      res.send({
-        users: users.map(u => {
-          const { password, ...userWithoutPassword } = u;
-          return userWithoutPassword;
-        }),
-        token
+      User.findAll().then((resolve) => {
+        const users = JSON.parse(JSON.stringify(resolve, null, 4));
+        res.send({
+          users: users.map(u => {
+            const { password, ...userWithoutPassword } = u;
+            return userWithoutPassword;
+          }),
+          token
+        });
       });
+    }).catch(err => {
+      throw err;
     });
-  }).catch(err => {
-    throw err;
   });
 }
 
