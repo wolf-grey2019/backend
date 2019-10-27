@@ -3,7 +3,7 @@ const app = express();
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const errorHandler = require('./error-handler');
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000; /* 3306 */
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());

@@ -4,18 +4,18 @@ const config = require('./config.json');
 const jwt = require('jsonwebtoken');
 const Sequelize = require('sequelize');
 
-// const sequelize = new Sequelize('kUmw0n1Ziw', 'kUmw0n1Ziw', 'Y2XIb0BSp3', {
-const sequelize = new Sequelize('mydb', 'root', '', {
-  host: 'localhost',
+const sequelize = new Sequelize('kUmw0n1Ziw', 'kUmw0n1Ziw', 'Y2XIb0BSp3', {
+  host: 'remotemysql.com',
+  // const sequelize = new Sequelize('mydb', 'root', '', {
+    // host: 'localhost',
   dialect: 'mysql'
 });
 
-sequelize.authenticate()
-  .then(() => {
-    console.log('Connected');
-  }).catch(err => {
-    console.log(`Can't connect ${err}`);
-  });
+sequelize.authenticate().then(() => {
+  console.log('Connected');
+}).catch(err => {
+  console.log(`Can't connect ${err}`);
+});
 
 const Model = Sequelize.Model;
 class User extends Model { }
