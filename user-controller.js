@@ -3,11 +3,14 @@ const router = express.Router();
 const config = require('./config.json');
 const jwt = require('jsonwebtoken');
 const Sequelize = require('sequelize');
+const bcrypt = require('bcrypt');
+
+const saltOrRounds = 10;
 
 const sequelize = new Sequelize('kUmw0n1Ziw', 'kUmw0n1Ziw', 'Y2XIb0BSp3', {
-  host: 'remotemysql.com',
-  // const sequelize = new Sequelize('mydb', 'root', '', {
-    // host: 'localhost',
+host: 'remotemysql.com',
+// const sequelize = new Sequelize('mydb', 'root', '', {
+//   host: 'localhost',
   dialect: 'mysql'
 });
 
@@ -38,36 +41,40 @@ User.init({
   timestamps: false
 });
 
-let curUser;
-
 const login = (req, res, next) => {
   const { username, password } = req.body;
-  let user;
+  console.log(`username->'${username}', password->'${password}'`);
+
   User.findAll({
-    where: { username, password }
+    where: { username }
   }).then(resolve => {
     const user = JSON.parse(JSON.stringify(resolve, null, 4))[0];
     // console.log(user);
 
-    // if no found in the table
-    if (user.length === 0) {
-      res.status(400).send({ message: 'Username or password is incorrect' });
+    // if match data not found in the table
+    if (user === undefined) {
+      res.status(400).send({ message: 'Username incorrect' });
     }
 
-    // save the found user in curUser for the change in the future
-    curUser = Object.assign({}, user);
+    bcrypt.compare(password, user.password, (err, same) => {
+      if (err) throw err;
+      if (same) {
+        // password is correct
+        const token = jwt.sign({ sub: user.id }, config.secret);
 
-    const token = jwt.sign({ sub: user.username }, config.secret);
-
-    User.findAll().then(resolve => {
-      const users = JSON.parse(JSON.stringify(resolve, null, 4));
-      res.send({
-        users: users.map(u => {
-          const { password, ...userWithoutPassword } = u;
-          return userWithoutPassword;
-        }),
-        token
-      });
+        User.findAll().then(resolve => {
+          const users = JSON.parse(JSON.stringify(resolve, null, 4));
+          res.send({
+            users: users.map(u => {
+              const { password, ...userWithoutPassword } = u;
+              return userWithoutPassword;
+            }),
+            token
+          });
+        });
+      } else {
+        res.status(400).send({ message: 'Password incorrect' });
+      }
     });
   }).catch(reject => res.status(400).send({ message: reject }));
 }
@@ -75,55 +82,59 @@ const login = (req, res, next) => {
 const signup = (req, res, next) => {
   const { username, email, password } = req.body;
   console.log(`username->'${username}', email->'${email}', password->'${password}'`);
-  User.sync({ force: false }).then(() => {
-    User.create({
-      username, email, password
-    }).then(user => {
-      curUser = Object.assign({}, user);
-      const token = jwt.sign({ sub: user.username }, config.secret);
 
-      User.findAll().then((resolve) => {
-        const users = JSON.parse(JSON.stringify(resolve, null, 4));
-        res.send({
-          users: users.map(u => {
-            const { password, ...userWithoutPassword } = u;
-            return userWithoutPassword;
-          }),
-          token
+  // if table "users" in database, then add the following data
+  // if no table "users" in database, then create it
+  User.sync({ force: false }).then(() => {
+    // bcrypt the password
+    bcrypt.hash(password, saltOrRounds, (err, password) => {
+      if (err) throw err;
+      // add the new data with username, email, password
+      User.create({
+        username, email, password
+      }).then(user => {
+        const token = jwt.sign({ sub: user.id }, config.secret);
+
+        User.findAll().then((resolve) => {
+          const users = JSON.parse(JSON.stringify(resolve, null, 4));
+          res.send({
+            users: users.map(u => {
+              const { password, ...userWithoutPassword } = u;
+              return userWithoutPassword;
+            }),
+            token
+          });
         });
+      }).catch(err => {
+        throw err;
       });
-    }).catch(err => {
-      throw err;
-    });
+    })
+
   });
 }
 
 const changeMyData = (req, res, next) => {
   const { authorization } = req.headers;
   if (authorization && authorization.split(' ')[0] === 'Bearer') {
-    jwt.verify(authorization.split(' ')[1], config.secret, (err) => {
+    jwt.verify(authorization.split(' ')[1], config.secret, (err, token) => {
       if (err) {
         console.log('jwt incorrect');
         throw err;
       } else {
+        console.log(token);
         console.log('jwt correct');
-        console.log(curUser);
         const { username, email, password } = req.body;
+
         User.update({ username, email, password }, {
-          where: curUser
+          where: { id: token.sub }
         }).then(() => {
-          curUser = Object.assign({}, curUser, { username, email, password });
-
-          const token = jwt.sign({ sub: username }, config.secret);
-
           User.findAll().then(resolve => {
             const users = JSON.parse(JSON.stringify(resolve, null, 4));
             res.send({
               users: users.map(u => {
                 const { password, ...userWithoutPassword } = u;
                 return userWithoutPassword;
-              }),
-              token
+              })
             });
           });
         }).catch(reject => {
@@ -133,7 +144,7 @@ const changeMyData = (req, res, next) => {
       }
     });
   } else {
-    console.log('no authorization');
+    console.log('token needed');
   }
 }
 
